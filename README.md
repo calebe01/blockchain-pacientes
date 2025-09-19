@@ -1,6 +1,8 @@
 # Entrega Final da Fase 2
 
-> Para o passo a passo detalhado de como rodar e entender o projeto, consulte o arquivo README2.md
+> 🚀 **VERSÃO REMIX**: Para usar com Remix IDE, consulte o arquivo `README-REMIX.md`
+
+> Para o passo a passo detalhado com Truffle, consulte o arquivo README2.md
 
 ## Prazo
 - Data limite: 26 de setembro, até 23:59

@@ -1,0 +1,279 @@
+<!--
+    index-remix.html
+    Interface web otimizada para usar com contratos deployados no Remix IDE.
+    Funciona com MetaMask e redes de teste como Sepolia ou Goerli.
+    Substitua o ABI e ADDRESS pelos valores do seu deploy no Remix.
+-->
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <title>Cadastro de Pacientes - Remix Version</title>
+    <!-- Web3.js para conectar ao contrato -->
+    <script src="https://cdn.jsdelivr.net/npm/web3@latest/dist/web3.min.js"></script>
+    <style>
+        body { 
+            font-family: Arial, sans-serif; 
+            margin: 40px; 
+            background-color: #f5f5f5; 
+        }
+        .container { 
+            max-width: 600px; 
+            margin: auto; 
+            background: white; 
+            padding: 30px; 
+            border-radius: 10px; 
+            box-shadow: 0 0 10px rgba(0,0,0,0.1); 
+        }
+        input, button { 
+            margin: 8px 0; 
+            padding: 10px; 
+            width: 100%; 
+            box-sizing: border-box; 
+            border: 1px solid #ddd; 
+            border-radius: 5px; 
+        }
+        button { 
+            background-color: #007bff; 
+            color: white; 
+            cursor: pointer; 
+            font-weight: bold; 
+        }
+        button:hover { background-color: #0056b3; }
+        .result { 
+            margin-top: 20px; 
+            padding: 15px; 
+            background-color: #f8f9fa; 
+            border-radius: 5px; 
+            border-left: 4px solid #007bff; 
+        }
+        .error { border-left-color: #dc3545; background-color: #f8d7da; }
+        .success { border-left-color: #28a745; background-color: #d4edda; }
+        .info { 
+            background-color: #d1ecf1; 
+            border: 1px solid #bee5eb; 
+            padding: 15px; 
+            border-radius: 5px; 
+            margin-bottom: 20px; 
+        }
+        h2 { color: #333; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🏥 Cadastro de Pacientes - Blockchain</h1>
+        
+        <!-- Informações importantes -->
+        <div class="info">
+            <strong>📝 Instruções:</strong><br>
+            1. Instale o MetaMask<br>
+            2. Configure para rede de teste (Sepolia/Goerli) ou use JavaScript VM no Remix<br>
+            3. Substitua o ABI e ADDRESS abaixo pelos valores do seu contrato<br>
+            4. Conecte sua carteira e teste!
+        </div>
+
+        <!-- Status da conexão -->
+        <div id="connectionStatus" class="result">
+            🔴 Desconectado - Aguardando MetaMask...
+        </div>
+
+        <h2>📋 Cadastrar Paciente</h2>
+        <!-- Formulário de cadastro -->
+        <form id="cadastroForm">
+            <input type="text" id="nome" placeholder="Nome completo" required>
+            <input type="text" id="cpf" placeholder="CPF (apenas números)" required>
+            <input type="number" id="idade" placeholder="Idade" required>
+            <input type="text" id="enderecoPaciente" placeholder="Endereço (opcional)">
+            <button type="submit">➕ Cadastrar Paciente</button>
+        </form>
+
+        <h2>🔍 Consultar Paciente</h2>
+        <!-- Consulta por CPF -->
+        <input type="text" id="consultaCpf" placeholder="CPF para consulta">
+        <button onclick="consultarPaciente()">🔎 Consultar por CPF</button>
+
+        <!-- Área de resultados -->
+        <div class="result" id="resultadoConsulta" style="display: none;"></div>
+    </div>
+
+    <script>
+        // ⚠️ SUBSTITUA ESTES VALORES PELOS DO SEU CONTRATO NO REMIX ⚠️
+        
+        // ABI do contrato (copie do Remix após compilação)
+        const contractABI = [
+            // COLE AQUI O ABI COMPLETO DO REMIX
+            // Exemplo básico - substitua pelo ABI real:
+            {
+                "inputs": [
+                    {"internalType": "string", "name": "nome", "type": "string"},
+                    {"internalType": "string", "name": "cpf", "type": "string"},
+                    {"internalType": "uint256", "name": "idade", "type": "uint256"},
+                    {"internalType": "string", "name": "enderecoPaciente", "type": "string"}
+                ],
+                "name": "cadastrarPaciente",
+                "outputs": [],
+                "stateMutability": "nonpayable",
+                "type": "function"
+            },
+            {
+                "inputs": [{"internalType": "string", "name": "cpf", "type": "string"}],
+                "name": "consultarPaciente",
+                "outputs": [
+                    {"internalType": "string", "name": "", "type": "string"},
+                    {"internalType": "string", "name": "", "type": "string"},
+                    {"internalType": "uint256", "name": "", "type": "uint256"},
+                    {"internalType": "string", "name": "", "type": "string"}
+                ],
+                "stateMutability": "view",
+                "type": "function"
+            }
+        ];
+        
+        // Endereço do contrato (copie do Remix após deploy)
+        const contractAddress = ""; // COLE AQUI O ENDEREÇO DO SEU CONTRATO
+        
+        let web3;
+        let contract;
+        let userAccount;
+
+        // Inicializa a aplicação
+        window.addEventListener('load', async () => {
+            await initWeb3();
+        });
+
+        // Inicializa Web3 e MetaMask
+        async function initWeb3() {
+            const statusDiv = document.getElementById('connectionStatus');
+            
+            try {
+                // Verifica se o MetaMask está instalado
+                if (window.ethereum) {
+                    web3 = new Web3(window.ethereum);
+                    
+                    // Solicita acesso às contas
+                    const accounts = await window.ethereum.request({ 
+                        method: 'eth_requestAccounts' 
+                    });
+                    
+                    userAccount = accounts[0];
+                    
+                    // Verifica se o endereço do contrato foi definido
+                    if (!contractAddress) {
+                        statusDiv.innerHTML = '⚠️ Configure o endereço do contrato primeiro!';
+                        statusDiv.className = 'result error';
+                        return;
+                    }
+                    
+                    // Cria instância do contrato
+                    contract = new web3.eth.Contract(contractABI, contractAddress);
+                    
+                    // Atualiza status
+                    statusDiv.innerHTML = `🟢 Conectado: ${userAccount.substring(0,10)}...`;
+                    statusDiv.className = 'result success';
+                    
+                    console.log('Web3 inicializado com sucesso!');
+                    
+                } else {
+                    statusDiv.innerHTML = '❌ MetaMask não detectado! Instale o MetaMask primeiro.';
+                    statusDiv.className = 'result error';
+                }
+            } catch (error) {
+                console.error('Erro ao conectar:', error);
+                statusDiv.innerHTML = `❌ Erro de conexão: ${error.message}`;
+                statusDiv.className = 'result error';
+            }
+        }
+
+        // Função de cadastro
+        document.getElementById('cadastroForm').onsubmit = async function(e) {
+            e.preventDefault();
+            
+            if (!contract) {
+                alert('❌ Conecte o MetaMask primeiro!');
+                return;
+            }
+            
+            // Pega os valores do formulário
+            const nome = document.getElementById('nome').value;
+            const cpf = document.getElementById('cpf').value;
+            const idade = document.getElementById('idade').value;
+            const enderecoPaciente = document.getElementById('enderecoPaciente').value;
+            
+            const resultDiv = document.getElementById('resultadoConsulta');
+            
+            try {
+                resultDiv.style.display = 'block';
+                resultDiv.innerHTML = '⏳ Enviando transação...';
+                resultDiv.className = 'result';
+                
+                // Chama a função do contrato
+                const result = await contract.methods
+                    .cadastrarPaciente(nome, cpf, parseInt(idade), enderecoPaciente)
+                    .send({ from: userAccount });
+                
+                resultDiv.innerHTML = `✅ Paciente cadastrado com sucesso!<br>
+                                      Hash da transação: ${result.transactionHash}`;
+                resultDiv.className = 'result success';
+                
+                // Limpa o formulário
+                document.getElementById('cadastroForm').reset();
+                
+            } catch (error) {
+                console.error('Erro no cadastro:', error);
+                resultDiv.innerHTML = `❌ Erro no cadastro: ${error.message}`;
+                resultDiv.className = 'result error';
+            }
+        };
+
+        // Função de consulta
+        async function consultarPaciente() {
+            if (!contract) {
+                alert('❌ Conecte o MetaMask primeiro!');
+                return;
+            }
+            
+            const cpf = document.getElementById('consultaCpf').value;
+            const resultDiv = document.getElementById('resultadoConsulta');
+            
+            if (!cpf) {
+                alert('⚠️ Digite o CPF para consulta!');
+                return;
+            }
+            
+            try {
+                resultDiv.style.display = 'block';
+                resultDiv.innerHTML = '🔍 Consultando...';
+                resultDiv.className = 'result';
+                
+                // Chama a função de consulta
+                const resultado = await contract.methods.consultarPaciente(cpf).call();
+                
+                resultDiv.innerHTML = `
+                    📋 <strong>Dados do Paciente:</strong><br>
+                    <strong>Nome:</strong> ${resultado[0]}<br>
+                    <strong>CPF:</strong> ${resultado[1]}<br>
+                    <strong>Idade:</strong> ${resultado[2]} anos<br>
+                    <strong>Endereço:</strong> ${resultado[3] || 'Não informado'}
+                `;
+                resultDiv.className = 'result success';
+                
+            } catch (error) {
+                console.error('Erro na consulta:', error);
+                resultDiv.innerHTML = `❌ Erro na consulta: ${error.message}<br>
+                                      <small>Verifique se o CPF está cadastrado</small>`;
+                resultDiv.className = 'result error';
+            }
+        }
+
+        // Detecta mudanças de conta no MetaMask
+        if (window.ethereum) {
+            window.ethereum.on('accountsChanged', function(accounts) {
+                if (accounts.length > 0) {
+                    userAccount = accounts[0];
+                    location.reload(); // Recarrega a página para atualizar conexão
+                }
+            });
+        }
+    </script>
+</body>
+</html>
